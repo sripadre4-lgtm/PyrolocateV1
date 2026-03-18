@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>PyroLocate 🔥</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet.js map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #111;
+            color: #f0f0f0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #ff6600;
+            font-size: 2em;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+
+        #map {
+            height: 480px;
+            width: 100%;
+            border-radius: 12px;
+            border: 2px solid #ff6600;
+            margin-bottom: 30px;
+        }
+
+        .form-container {
+            background: #1e1e1e;
+            border: 1px solid #ff6600;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 520px;
+            margin: 0 auto 30px auto;
+        }
+
+        .form-container h2 {
+            color: #ff6600;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            color: #ff9944;
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 14px;
+            background: #2a2a2a;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 0.95em;
+        }
+
+        input:focus, textarea:focus {
+            border-color: #ff6600;
+            outline: none;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row > div { flex: 1; }
+
+        button.submit-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        button.submit-btn:hover { background-color: #cc5200; }
+
+        .fire-list {
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        .fire-list h2 {
+            color: #ff6600;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .fire-item {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .fire-item .fire-info strong { color: #ff6600; }
+        .fire-item .fire-info small { color: #aaa; display: block; margin-top: 2px; }
+
+        .delete-btn {
+            background: #880000;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        .delete-btn:hover { background: #cc0000; }
+
+        .no-fires {
+            text-align: center;
+            color: #666;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔥 PyroLocate</h1>
+    <p class="subtitle">Real-time Wildfire Location Tracker</p>
+
+    <!-- MAP -->
+    <div id="map"></div>
+
+    <!-- SUBMIT FORM -->
+    <div class="form-container">
+        <h2>📍 Report a Wildfire</h2>
+        <form action="/add" method="post" id="wildfireForm">
+            <label>Wildfire Name</label>
+            <input type="text" name="name" placeholder="e.g. California Forest Fire" required />
+
+            <label>Location (Address or Landmark)</label>
+            <input type="text" name="address" id="addressInput" placeholder="e.g. Yosemite National Park, CA" required />
+            <input type="hidden" name="latitude" id="latInput" />
+            <input type="hidden" name="longitude" id="lonInput" />
+
+
+
+            <label>Description (optional)</label>
+            <textarea name="description" rows="3" placeholder="Any additional details..."></textarea>
+
+            <button type="submit" class="submit-btn">🔥 Submit Wildfire Report</button>
+        </form>
+    </div>
+
+    <!-- WILDFIRE LIST -->
+    <div class="fire-list">
+        <h2>🗂 Submitted Reports</h2>
+
+        <div th:if="${wildfires.empty}" class="no-fires">
+            No wildfires reported yet. Submit one above!
+        </div>
+
+        <div th:each="fire : ${wildfires}" class="fire-item">
+            <div class="fire-info">
+                <strong th:text="${fire.name}">Fire Name</strong>
+                <small th:if="${fire.address != null and !fire.address.isEmpty()}" th:text="'📍 ' + ${fire.address}"></small>
+                <small th:text="'Lat: ' + ${fire.latitude} + '  |  Lng: ' + ${fire.longitude}">coords</small>
+                <small th:text="${fire.description}" style="color:#ccc;"></small>
+            </div>
+            <form th:action="'/delete/' + ${fire.id}" method="post">
+                <button type="submit" class="delete-btn">🗑 Delete</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAP SCRIPT -->
+    <script>
+        var map = L.map('map').setView([20, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var fireIcon = L.divIcon({
+            html: '<div style="font-size: 24px; text-align: center; line-height: 24px;">🔥</div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+            popupAnchor: [0, -24],
+            className: ''
+        });
+
+        // Load wildfires from API and place markers
+        fetch('/api/wildfires')
+            .then(res => res.json())
+            .then(wildfires => {
+                // Filter out invalid coordinates to prevent map crashing
+                var validWildfires = wildfires.filter(f => 
+                    f.latitude != null && f.longitude != null && 
+                    f.latitude >= -90 && f.latitude <= 90 && 
+                    f.longitude >= -180 && f.longitude <= 180
+                );
+
+                validWildfires.forEach(function(fire) {
+                    L.marker([fire.latitude, fire.longitude], { icon: fireIcon })
+                        .addTo(map)
+                        .bindPopup(
+                            '<b>🔥 ' + fire.name + '</b><br>' +
+                            (fire.address ? '📍 ' + fire.address + '<br>' : '') +
+                            'Lat: ' + fire.latitude + '<br>' +
+                            'Lng: ' + fire.longitude + '<br>' +
+                            (fire.description ? '<i>' + fire.description + '</i>' : '')
+                        );
+                });
+
+                // If there are valid wildfires, zoom the map to fit them all
+                if (validWildfires.length > 0) {
+                    if (validWildfires.length === 1) {
+                        map.setView([validWildfires[0].latitude, validWildfires[0].longitude], 10);
+                    } else {
+                        var bounds = validWildfires.map(f => [f.latitude, f.longitude]);
+                        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+                    }
+                }
+            })
+            .catch(err => console.error("Error loading wildfires:", err));
+
+        // Form submission intercept for geocoding
+        document.getElementById('wildfireForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var originalAddress = document.getElementById('addressInput').value;
+            var submitBtn = document.querySelector('.submit-btn');
+            submitBtn.textContent = '✅ Locating...';
+            submitBtn.disabled = true;
+
+            var currentForm = this;
+
+            function geocodeAddress(addressToTry) {
+                if (!addressToTry || addressToTry.trim() === '') {
+                    alert("Could not find coordinates for this address on the map. Please try a simpler city or regional address.");
+                    submitBtn.textContent = '🔥 Submit Wildfire Report';
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(addressToTry))
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            // Match found!
+                            document.getElementById('latInput').value = data[0].lat;
+                            document.getElementById('lonInput').value = data[0].lon;
+                            currentForm.submit(); // Submit the form for real
+                        } else {
+                            // Fallback logic: OpenStreetMap Nominatim is strict. If "Near XYZ, City, State" fails,
+                            // we strip the first comma segment to widen the search scope to "City, State".
+                            var parts = addressToTry.split(',');
+                            if (parts.length > 1) {
+                                parts.shift(); // Remove the most specific leading part
+                                var fallbackAddress = parts.join(',').trim();
+                                console.log('Geocoding strict match failed. Falling back to: ' + fallbackAddress);
+                                geocodeAddress(fallbackAddress);
+                            } else {
+                                // We are out of comma segments to strip, and it still failed.
+                                alert("Could not find coordinates for this address. Please try a different or simpler address.");
+                                submitBtn.textContent = '🔥 Submit Wildfire Report';
+                                submitBtn.disabled = false;
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Geocoding error:', err);
+                        alert("Error reaching geocoding service.");
+                        submitBtn.textContent = '🔥 Submit Wildfire Report';
+                        submitBtn.disabled = false;
+                    });
+            }
+
+            // Start the recursive geocoding attempt
+            geocodeAddress(originalAddress);
+        });
+    </script>
+
+</body>
+</html>
