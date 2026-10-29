@@ -1,0 +1,43 @@
+# Compiled class files
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+.mvn/
+maven.config
+dependency-reduced-pom.xml
+.pom.xml.cache
+mvnw
+mvnw.cmd
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.csproj
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
